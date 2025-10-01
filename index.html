@@ -38,7 +38,7 @@
     <select id="layer">
       <!-- GIBS layer identifiers (True Color) -->
       <option value="VIIRS_SNPP_CorrectedReflectance_TrueColor">VIIRS SNPP True Color</option>
-      <option value="VIIRS_NOAA20_CorrectedReflectance_TrueColor">VIIRS NOAA‑20 True Color</option>
+      <option value="VIIRS_NOAA20_CorrectedReflectance_TrueColor" selected>VIIRS NOAA‑20 True Color</option>
       <option value="MODIS_Terra_CorrectedReflectance_TrueColor">MODIS Terra True Color</option>
     </select>
 
@@ -51,11 +51,15 @@
   <script>
     // --- Map setup -----------------------------------------------------------
     const todayISO = new Date().toISOString().slice(0,10);
+    const defaultDateISO = '2025-06-06';
+    const initialLayerId = 'VIIRS_NOAA20_CorrectedReflectance_TrueColor';
 
     const map = L.map('map', {
       center: [20, 0],
       zoom: 3
     });
+
+    map.zoomControl.setPosition('bottomleft');
 
     // Attribution (GIBS + Leaflet)
     map.attributionControl.setPrefix(false);
@@ -65,6 +69,7 @@
     // --- Drawing layer + controls -------------------------------------------
     const drawnItems = new L.FeatureGroup().addTo(map);
     const drawControl = new L.Control.Draw({
+      position: 'bottomleft',
       edit: { featureGroup: drawnItems },
       draw: {
         polygon: { allowIntersection: false, showArea: true },
@@ -131,9 +136,10 @@
 
     // UI: Date picker -> update TIME parameter on WMS layer
     const dateInput = document.getElementById('date');
-    dateInput.value = todayISO;
+    dateInput.value = defaultDateISO;
     dateInput.min = '2000-01-01';
-    dateInput.max = todayISO;
+    const latestSelectableDate = todayISO < defaultDateISO ? defaultDateISO : todayISO;
+    dateInput.max = latestSelectableDate;
 
     dateInput.addEventListener('change', (e) => {
       const d = e.target.value || todayISO;
@@ -142,6 +148,7 @@
     });
 
     const layerSelect = document.getElementById('layer');
+    layerSelect.value = initialLayerId;
 
     // Initialize first layer
     setImageryLayer(layerSelect.value, dateInput.value);
