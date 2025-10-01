@@ -33,13 +33,29 @@
 <body>
   <div id="map"></div>
 
+
+
+  <div class="toolbar" style="top: 160px; min-width: 250px;" id="layer-info-box">
+    <strong>Layer Info</strong>
+    <div id="layer-info" style="margin-top: 8px; font-size: 13px; color: #333;">
+      Select a layer to see its description.
+    </div>
+  </div>
+
   <div class="toolbar">
     <label for="layer">Layer</label>
     <select id="layer">
-      <!-- GIBS layer identifiers (True Color) -->
+      <!-- GIBS layer identifiers (True Color & Infrared) -->
       <option value="VIIRS_SNPP_CorrectedReflectance_TrueColor">VIIRS SNPP True Color</option>
       <option value="VIIRS_NOAA20_CorrectedReflectance_TrueColor" selected>VIIRS NOAA‑20 True Color</option>
       <option value="MODIS_Terra_CorrectedReflectance_TrueColor">MODIS Terra True Color</option>
+  <option value="MODIS_Terra_CorrectedReflectance_Bands721">MODIS Terra Infrared (Bands 7-2-1)</option>
+  <option value="MODIS_Terra_CorrectedReflectance_Bands367">MODIS Terra Shortwave IR (Bands 3-6-7)</option>
+  <option value="MODIS_Terra_CorrectedReflectance_Bands431">MODIS Terra Natural Color (Bands 4-3-1)</option>
+  <option value="MODIS_Terra_CorrectedReflectance_Bands621">MODIS Terra Shortwave IR (Bands 6-2-1)</option>
+  <option value="VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1">VIIRS SNPP Infrared (Bands M11-I2-I1)</option>
+  <option value="VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2">VIIRS SNPP Shortwave IR (Bands M3-M11-I2)</option>
+  <option value="VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3">VIIRS SNPP Land/Vegetation (Bands I1-I2-I3)</option>
     </select>
 
     <label for="date">Date</label>
@@ -49,6 +65,8 @@
   </div>
 
   <script>
+
+
     // --- Map setup -----------------------------------------------------------
     const todayISO = new Date().toISOString().slice(0,10);
     const defaultDateISO = '2025-06-06';
@@ -150,13 +168,34 @@
     const layerSelect = document.getElementById('layer');
     layerSelect.value = initialLayerId;
 
-    // Initialize first layer
-    setImageryLayer(layerSelect.value, dateInput.value);
+    // Layer descriptions
+    const layerDescriptions = {
+      'VIIRS_SNPP_CorrectedReflectance_TrueColor': 'VIIRS SNPP True Color: Natural color imagery from the Suomi NPP satellite.',
+      'VIIRS_NOAA20_CorrectedReflectance_TrueColor': 'VIIRS NOAA-20 True Color: Natural color imagery from the NOAA-20 satellite.',
+      'MODIS_Terra_CorrectedReflectance_TrueColor': 'MODIS Terra True Color: Natural color imagery from the Terra satellite.',
+      'MODIS_Terra_CorrectedReflectance_Bands721': 'MODIS Terra Infrared (Bands 7-2-1): False color composite. Vegetation appears green, burn scars are red, and clouds are white. Useful for distinguishing between snow/ice and clouds, and for detecting fires and burn scars.',
+      'MODIS_Terra_CorrectedReflectance_Bands367': 'MODIS Terra Shortwave IR (Bands 3-6-7): Highlights burn scars (red), vegetation (green), and clouds/snow (white/blue). Useful for fire and vegetation analysis.',
+      'MODIS_Terra_CorrectedReflectance_Bands431': 'MODIS Terra Natural Color (Bands 4-3-1): Similar to true color but with enhanced vegetation contrast. Vegetation appears green, water is blue, and soil is brown.',
+      'MODIS_Terra_CorrectedReflectance_Bands621': 'MODIS Terra Shortwave IR (Bands 6-2-1): Highlights snow, ice, and clouds. Snow/ice appear blue, vegetation is green, and bare ground is brown.',
+      'VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1': 'VIIRS SNPP Infrared (Bands M11-I2-I1): False color composite using infrared and visible bands. Highlights vegetation, water, and burn scars. Useful for fire detection and land surface analysis.',
+      'VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2': 'VIIRS SNPP Shortwave IR (Bands M3-M11-I2): Useful for fire and land surface analysis. Burn scars and hot spots are highlighted.',
+      'VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3': 'VIIRS SNPP Land/Vegetation (Bands I1-I2-I3): Combination of visible and near-infrared bands for land and vegetation monitoring.'
+    };
 
-    // Keep imagery in sync when switching between layers
+    function updateLayerInfo(layerId) {
+      const info = layerDescriptions[layerId] || 'No description available for this layer.';
+      document.getElementById('layer-info').textContent = info;
+    }
+
+    // Initialize first layer and info
+    setImageryLayer(layerSelect.value, dateInput.value);
+    updateLayerInfo(layerSelect.value);
+
+    // Keep imagery and info in sync when switching between layers
     layerSelect.addEventListener('change', (e) => {
       const dateISO = dateInput.value || todayISO;
       setImageryLayer(e.target.value, dateISO);
+      updateLayerInfo(e.target.value);
     });
   </script>
 </body>
