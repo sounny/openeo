@@ -74,6 +74,8 @@
 <body>
   <div id="map"></div>
 
+  <div id="area-info-box" style="display:none; position:absolute; z-index:2000; min-width:220px; background:rgba(255,255,255,0.97); border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.18); padding:14px 18px; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; pointer-events:none;"></div>
+
   <div class="toolbar">
     <label for="layer">Layer</label>
     <select id="layer">
@@ -146,7 +148,46 @@
 
     map.on(L.Draw.Event.CREATED, (e) => {
       drawnItems.addLayer(e.layer);
+      attachAreaHoverEvents(e.layer);
     });
+
+    // Attach hover events to all drawn layers (for edit mode)
+    drawnItems.on('layeradd', function(e) {
+      attachAreaHoverEvents(e.layer);
+    });
+    // --- Area info box logic ---
+    const infoBox = document.getElementById('area-info-box');
+
+    function attachAreaHoverEvents(layer) {
+      layer.on('mouseover', function(e) {
+        // Get mouse position relative to map container
+        const mapContainer = map.getContainer();
+        const mouseEvent = e.originalEvent;
+        // Position the info box near the mouse
+        infoBox.style.left = (mouseEvent.clientX + 16) + 'px';
+        infoBox.style.top = (mouseEvent.clientY - 10) + 'px';
+        // Fill info box with placeholder data
+        infoBox.innerHTML = `
+          <b>Selected Area Info</b><br>
+          <ul style="margin:8px 0 0 0; padding-left:18px;">
+            <li><b>Wind speed:</b> <span style="color:#0077b6">12.3 m/s</span> <i>(placeholder)</i></li>
+            <li><b>Elevation:</b> 150 m <i>(placeholder)</i></li>
+            <li><b>Bathymetry:</b> N/A <i>(placeholder)</i></li>
+            <li><b>Countries:</b> France, Spain <i>(placeholder)</i></li>
+          </ul>
+        `;
+        infoBox.style.display = 'block';
+      });
+      layer.on('mousemove', function(e) {
+        // Move the info box with the mouse
+        const mouseEvent = e.originalEvent;
+        infoBox.style.left = (mouseEvent.clientX + 16) + 'px';
+        infoBox.style.top = (mouseEvent.clientY - 10) + 'px';
+      });
+      layer.on('mouseout', function() {
+        infoBox.style.display = 'none';
+      });
+    }
 
     document.getElementById('export').addEventListener('click', () => {
       const fc = drawnItems.toGeoJSON();
