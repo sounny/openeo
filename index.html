@@ -220,6 +220,67 @@
       const dateISO = dateInput.value || todayISO;
       setImageryLayer(e.target.value, dateISO);
     });
+
+    // --- Storm System Visualization (NASA EONET) ------------------------------
+    // Source: NASA EONET API for natural events (storms, cyclones, etc.)
+    // Docs: https://eonet.gsfc.nasa.gov/docs/v3
+    // Example endpoint: https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=open
+
+    const stormLayerGroup = L.layerGroup().addTo(map);
+
+    async function fetchAndDisplayStorms() {
+      stormLayerGroup.clearLayers();
+      try {
+        // Fetch open severe storms from EONET
+        const resp = await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=open');
+        if (!resp.ok) throw new Error('Failed to fetch storm data');
+        const data = await resp.json();
+        // Each event is a storm system
+        (data.events || []).forEach(event => {
+          // Find the latest geometry with coordinates
+          const latestGeom = (event.geometry || []).slice(-1)[0];
+          if (latestGeom && latestGeom.coordinates && Array.isArray(latestGeom.coordinates)) {
+            let lat, lon;
+            // EONET coordinates are [lon, lat] for points, or arrays for polygons
+            if (typeof latestGeom.coordinates[0] === 'number') {
+              [lon, lat] = latestGeom.coordinates;
+            } else if (Array.isArray(latestGeom.coordinates[0])) {
+              // If it's a polygon, use centroid of first ring
+              const ring = latestGeom.coordinates[0];
+              const n = ring.length;
+              let sumLat = 0, sumLon = 0;
+              ring.forEach(([x, y]) => { sumLon += x; sumLat += y; });
+              lat = sumLat / n;
+              lon = sumLon / n;
+            }
+            // Draw a circle (radius in km, e.g., 200km for visualization)
+            const circle = L.circle([lat, lon], {
+              color: 'red',
+              fillColor: '#f03',
+              fillOpacity: 0.3,
+              radius: 200000 // 200km
+            });
+            // Add a label with the storm name
+            const name = event.title || 'Storm';
+            circle.bindPopup(`<b>${name}</b>`);
+            circle.addTo(stormLayerGroup);
+          }
+        });
+      } catch (err) {
+        console.error('Storm fetch error:', err);
+      }
+    }
+
+    // Fetch storms on load and every 30 minutes
+    fetchAndDisplayStorms();
+    setInterval(fetchAndDisplayStorms, 30 * 60 * 1000);
+
+    // Optional: Add a button to refresh storms manually
+    const stormBtn = document.createElement('button');
+    stormBtn.textContent = 'Refresh Storms';
+    stormBtn.title = 'Fetch and display current storm systems';
+    stormBtn.onclick = fetchAndDisplayStorms;
+    document.querySelector('.toolbar').appendChild(stormBtn);
   </script>
 </body>
 </html>
