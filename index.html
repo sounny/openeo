@@ -14,6 +14,10 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css">
   <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
+  <!-- Exporting libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.1.6/dist/dom-to-image-more.min.js"></script>
+  <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/geotiff"></script>
   <!-- Polyline Decorator for arrows -->
   <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.min.js"></script>
 
@@ -107,6 +111,10 @@
     <label for="date">Date</label>
     <input type="date" id="date" />
 
+    <button id="export-png">Export PNG</button>
+    <button id="export-geotiff">Export GeoTIFF</button>
+    <button id="export-kml">Export KML</button>
+    <button id="export-geojson">Export GeoJSON</button>
     <button id="export">Export GeoJSON</button>
     <button id="theme-toggle" title="Toggle dark mode">🌓</button>
   </div>
@@ -208,17 +216,126 @@
       });
     }
 
-    document.getElementById('export').addEventListener('click', () => {
-      const fc = drawnItems.toGeoJSON();
-      const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
+    // --- UI / Exporting -----------------------------------------------------
+    // Helper for downloading content
+    function download(filename, content, mime) {
+      const blob = new Blob([content], { type: mime || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'drawings.geojson';
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
       a.remove();
+    }
+
+    // PNG export
+    document.getElementById('export-png').addEventListener('click', async () => {
+      // Show a loading indicator (optional)
+      document.body.style.cursor = 'wait';
+
+      // Ensure all tiles are loaded before exporting
+      await new Promise(resolve => {
+        if (!currentImageryLayer._loading) {
+          resolve();
+        } else {
+          currentImageryLayer.once('load', () => resolve());
+        }
+      });
+
+      const mapEl = document.getElementById('map');
+      const dataUrl = await domtoimage.toPng(mapEl, {
+        width: mapEl.clientWidth,
+        height: mapEl.clientHeight,
+      });
+
+      // Data URLs can be used directly as the href for downloads
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'map.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      document.body.style.cursor = 'default';
+    });
+
+    // GeoJSON export
+    document.getElementById('export-geojson').addEventListener('click', () => {
+      const fc = drawnItems.toGeoJSON();
+      download('drawings.geojson', JSON.stringify(fc, null, 2), 'application/geo+json');
+    });
+
+    // KML export
+    document.getElementById('export-kml').addEventListener('click', () => {
+      const fc = drawnItems.toGeoJSON();
+      if (fc.features.length === 0) {
+        alert('No drawings to export. Please draw a polygon or rectangle first.');
+        return;
+      }
+      const kmlString = tokml(fc);
+      download('drawings.kml', kmlString, 'application/vnd.google-earth.kml+xml');
+    });
+
+    // GeoTIFF export (client-side)
+    document.getElementById('export-geotiff').addEventListener('click', async () => {
+      document.body.style.cursor = 'wait';
+
+      // 1. Capture map as a PNG data URL
+      await new Promise(resolve => currentImageryLayer.once('load', () => resolve()));
+      const mapEl = document.getElementById('map');
+      const pngDataUrl = await domtoimage.toPng(mapEl, {
+        width: mapEl.clientWidth,
+        height: mapEl.clientHeight,
+      });
+
+      // 2. Get image dimensions and geographic bounds
+      const size = map.getSize();
+      const bounds = map.getBounds();
+      const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+
+      // 3. Load the PNG into a canvas to get pixel data
+      const canvas = document.createElement('canvas');
+      canvas.width = size.x;
+      canvas.height = size.y;
+      const context = canvas.getContext('2d');
+
+      const image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = pngDataUrl;
+      });
+      context.drawImage(image, 0, 0, size.x, size.y);
+      const imageData = context.getImageData(0, 0, size.x, size.y);
+
+      // 4. Separate RGBA values into three bands (R, G, B)
+      const r = new Uint8Array(size.x * size.y);
+      const g = new Uint8Array(size.x * size.y);
+      const b = new Uint8Array(size.x * size.y);
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        r[i / 4] = imageData.data[i];
+        g[i / 4] = imageData.data[i + 1];
+        b[i / 4] = imageData.data[i + 2];
+      }
+      const rasters = [r, g, b];
+
+      // 5. Define GeoTIFF metadata
+      const metadata = {
+        width: size.x,
+        height: size.y,
+        srs: 4326, // WGS 84
+        bbox,
+        // ModelTiepoint and ModelPixelScale can also be used for more precise control
+        // but bbox is often sufficient for standard WGS 84 exports.
+      };
+
+      // 6. Create the GeoTIFF and trigger download
+      const tiffArrayBuffer = await GeoTIFF.writeArrayBuffer(rasters, metadata);
+      download('map.tiff', tiffArrayBuffer, 'image/tiff');
+
+      document.body.style.cursor = 'default';
     });
 
     // --- NASA GIBS WMS ------------------------------------------------------
