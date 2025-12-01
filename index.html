@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Open EO Viewer (Leaflet + GIBS + Hurricane)</title>
+  <title>GeoViewer (Leaflet + GIBS)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Leaflet core -->
@@ -17,40 +18,121 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.min.js"></script>
 
   <style>
+    :root {
+      --bg-color: #fff;
+      --text-color: #000;
+      --toolbar-bg: rgba(255,255,255,.92);
+      --input-bg: #fff;
+      --input-border: #ccc;
+      --box-shadow: rgba(0,0,0,.12);
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #1a1a1a;
+      --text-color: #fff;
+      --toolbar-bg: rgba(40,40,40,.92);
+      --input-bg: #333;
+      --input-border: #555;
+      --box-shadow: rgba(0,0,0,.3);
+    }
+
     html, body, #map { height: 100%; margin: 0; }
+    body { background-color: var(--bg-color); color: var(--text-color); }
+    
     .toolbar {
       position: absolute; z-index: 1000; top: 10px; left: 10px;
-      background: rgba(255,255,255,.92); backdrop-filter: blur(4px);
-      border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.12);
+      background: var(--toolbar-bg); backdrop-filter: blur(4px);
+      border-radius: 8px; box-shadow: 0 2px 10px var(--box-shadow);
       padding: 10px; font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
     .toolbar label { margin-right: 6px; font-weight: 600; }
     .toolbar select, .toolbar input[type="date"], .toolbar button {
-      font: inherit; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px;
-      background: #fff; margin-right: 6px;
+      font: inherit; padding: 6px 8px; 
+      border: 1px solid var(--input-border); border-radius: 6px;
+      background: var(--input-bg); color: var(--text-color);
+      margin-right: 6px;
     }
     .toolbar button { cursor: pointer; }
+    .toolbar button:hover { background: var(--input-border); }
     .leaflet-control-attribution { font-size: 11px; }
+
+    /* Dark mode adjustments for Leaflet controls */
+    [data-theme="dark"] .leaflet-control-zoom a {
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      border-color: var(--input-border);
+    }
+    [data-theme="dark"] .leaflet-control-zoom a:hover {
+      background-color: var(--input-border);
+    }
+    [data-theme="dark"] .leaflet-control-attribution {
+      background: rgba(40,40,40,.8) !important;
+      color: #ddd;
+    }
+    [data-theme="dark"] .leaflet-draw-toolbar a {
+      background-color: var(--input-bg);
+      border-color: var(--input-border);
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
+
+
+  <div class="toolbar" style="top: 160px; min-width: 250px;" id="layer-info-box">
+    <strong>Layer Info</strong>
+    <div id="layer-info" style="margin-top: 8px; font-size: 13px; color: #333;">
+      Select a layer to see its description.
+    </div>
+  </div>
+  <div id="area-info-box" style="display:none; position:absolute; z-index:2000; min-width:220px; background:rgba(255,255,255,0.97); border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.18); padding:14px 18px; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; pointer-events:none;"></div>
+
   <div class="toolbar">
     <label for="layer">Layer</label>
     <select id="layer">
+      <!-- GIBS layer identifiers (True Color & Infrared) -->
       <option value="VIIRS_SNPP_CorrectedReflectance_TrueColor">VIIRS SNPP True Color</option>
       <option value="VIIRS_NOAA20_CorrectedReflectance_TrueColor" selected>VIIRS NOAA‑20 True Color</option>
       <option value="MODIS_Terra_CorrectedReflectance_TrueColor">MODIS Terra True Color</option>
+  <option value="MODIS_Terra_CorrectedReflectance_Bands721">MODIS Terra Infrared (Bands 7-2-1)</option>
+  <option value="MODIS_Terra_CorrectedReflectance_Bands367">MODIS Terra Shortwave IR (Bands 3-6-7)</option>
+  <option value="MODIS_Terra_CorrectedReflectance_Bands431">MODIS Terra Natural Color (Bands 4-3-1)</option>
+  <option value="MODIS_Terra_CorrectedReflectance_Bands621">MODIS Terra Shortwave IR (Bands 6-2-1)</option>
+  <option value="VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1">VIIRS SNPP Infrared (Bands M11-I2-I1)</option>
+  <option value="VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2">VIIRS SNPP Shortwave IR (Bands M3-M11-I2)</option>
+  <option value="VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3">VIIRS SNPP Land/Vegetation (Bands I1-I2-I3)</option>
     </select>
 
     <label for="date">Date</label>
     <input type="date" id="date" />
 
     <button id="export">Export GeoJSON</button>
+    <button id="theme-toggle" title="Toggle dark mode">🌓</button>
   </div>
 
   <script>
+
+    // --- Theme management --------------------------------------------------
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+    }
+
+    // Check for saved theme preference or system preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      setTheme(savedTheme);
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setTheme('dark');
+    }
+
+    // Theme toggle button
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    });
+
     // --- Map setup -----------------------------------------------------------
     const todayISO = new Date().toISOString().slice(0,10);
     const defaultDateISO = '2025-06-06';
@@ -85,7 +167,46 @@
 
     map.on(L.Draw.Event.CREATED, (e) => {
       drawnItems.addLayer(e.layer);
+      attachAreaHoverEvents(e.layer);
     });
+
+    // Attach hover events to all drawn layers (for edit mode)
+    drawnItems.on('layeradd', function(e) {
+      attachAreaHoverEvents(e.layer);
+    });
+    // --- Area info box logic ---
+    const infoBox = document.getElementById('area-info-box');
+
+    function attachAreaHoverEvents(layer) {
+      layer.on('mouseover', function(e) {
+        // Get mouse position relative to map container
+        const mapContainer = map.getContainer();
+        const mouseEvent = e.originalEvent;
+        // Position the info box near the mouse
+        infoBox.style.left = (mouseEvent.clientX + 16) + 'px';
+        infoBox.style.top = (mouseEvent.clientY - 10) + 'px';
+        // Fill info box with placeholder data
+        infoBox.innerHTML = `
+          <b>Selected Area Info</b><br>
+          <ul style="margin:8px 0 0 0; padding-left:18px;">
+            <li><b>Wind speed:</b> <span style="color:#0077b6">12.3 m/s</span> <i>(placeholder)</i></li>
+            <li><b>Elevation:</b> 150 m <i>(placeholder)</i></li>
+            <li><b>Bathymetry:</b> N/A <i>(placeholder)</i></li>
+            <li><b>Countries:</b> France, Spain <i>(placeholder)</i></li>
+          </ul>
+        `;
+        infoBox.style.display = 'block';
+      });
+      layer.on('mousemove', function(e) {
+        // Move the info box with the mouse
+        const mouseEvent = e.originalEvent;
+        infoBox.style.left = (mouseEvent.clientX + 16) + 'px';
+        infoBox.style.top = (mouseEvent.clientY - 10) + 'px';
+      });
+      layer.on('mouseout', function() {
+        infoBox.style.display = 'none';
+      });
+    }
 
     document.getElementById('export').addEventListener('click', () => {
       const fc = drawnItems.toGeoJSON();
@@ -110,3 +231,134 @@
     }).addTo(map);
 
     let currentImageryLayer
+    let currentImageryLayer = null;
+
+    function buildImageryLayer(layerId, dateISO) {
+      const timeParam = dateISO || todayISO;
+      return L.tileLayer.wms(GIBS_WMS, {
+        layers: layerId,
+        format: 'image/jpeg',   // faster for full-color imagery
+        transparent: false,
+        version: '1.3.0',
+        time: timeParam,
+        crossOrigin: 'anonymous'
+      });
+    }
+
+    function setImageryLayer(layerId, dateISO) {
+      if (currentImageryLayer) {
+        map.removeLayer(currentImageryLayer);
+      }
+      currentImageryLayer = buildImageryLayer(layerId, dateISO);
+      currentImageryLayer.addTo(map);
+    }
+
+    // UI: Date picker -> update TIME parameter on WMS layer
+    const dateInput = document.getElementById('date');
+    dateInput.value = defaultDateISO;
+    dateInput.min = '2000-01-01';
+    const latestSelectableDate = todayISO < defaultDateISO ? defaultDateISO : todayISO;
+    dateInput.max = latestSelectableDate;
+
+    dateInput.addEventListener('change', (e) => {
+      const d = e.target.value || todayISO;
+      if (!currentImageryLayer) return;
+      currentImageryLayer.setParams({ time: d });
+    });
+
+    const layerSelect = document.getElementById('layer');
+    layerSelect.value = initialLayerId;
+
+    // Layer descriptions
+    const layerDescriptions = {
+      'VIIRS_SNPP_CorrectedReflectance_TrueColor': 'VIIRS SNPP True Color: Natural color imagery from the Suomi NPP satellite.',
+      'VIIRS_NOAA20_CorrectedReflectance_TrueColor': 'VIIRS NOAA-20 True Color: Natural color imagery from the NOAA-20 satellite.',
+      'MODIS_Terra_CorrectedReflectance_TrueColor': 'MODIS Terra True Color: Natural color imagery from the Terra satellite.',
+      'MODIS_Terra_CorrectedReflectance_Bands721': 'MODIS Terra Infrared (Bands 7-2-1): False color composite. Vegetation appears green, burn scars are red, and clouds are white. Useful for distinguishing between snow/ice and clouds, and for detecting fires and burn scars.',
+      'MODIS_Terra_CorrectedReflectance_Bands367': 'MODIS Terra Shortwave IR (Bands 3-6-7): Highlights burn scars (red), vegetation (green), and clouds/snow (white/blue). Useful for fire and vegetation analysis.',
+      'MODIS_Terra_CorrectedReflectance_Bands431': 'MODIS Terra Natural Color (Bands 4-3-1): Similar to true color but with enhanced vegetation contrast. Vegetation appears green, water is blue, and soil is brown.',
+      'MODIS_Terra_CorrectedReflectance_Bands621': 'MODIS Terra Shortwave IR (Bands 6-2-1): Highlights snow, ice, and clouds. Snow/ice appear blue, vegetation is green, and bare ground is brown.',
+      'VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1': 'VIIRS SNPP Infrared (Bands M11-I2-I1): False color composite using infrared and visible bands. Highlights vegetation, water, and burn scars. Useful for fire detection and land surface analysis.',
+      'VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2': 'VIIRS SNPP Shortwave IR (Bands M3-M11-I2): Useful for fire and land surface analysis. Burn scars and hot spots are highlighted.',
+      'VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3': 'VIIRS SNPP Land/Vegetation (Bands I1-I2-I3): Combination of visible and near-infrared bands for land and vegetation monitoring.'
+    };
+
+    function updateLayerInfo(layerId) {
+      const info = layerDescriptions[layerId] || 'No description available for this layer.';
+      document.getElementById('layer-info').textContent = info;
+    }
+
+    // Initialize first layer and info
+    setImageryLayer(layerSelect.value, dateInput.value);
+    updateLayerInfo(layerSelect.value);
+
+    // Keep imagery and info in sync when switching between layers
+    layerSelect.addEventListener('change', (e) => {
+      const dateISO = dateInput.value || todayISO;
+      setImageryLayer(e.target.value, dateISO);
+      updateLayerInfo(e.target.value);
+    });
+
+    // --- Storm System Visualization (NASA EONET) ------------------------------
+    // Source: NASA EONET API for natural events (storms, cyclones, etc.)
+    // Docs: https://eonet.gsfc.nasa.gov/docs/v3
+    // Example endpoint: https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=open
+
+    const stormLayerGroup = L.layerGroup().addTo(map);
+
+    async function fetchAndDisplayStorms() {
+      stormLayerGroup.clearLayers();
+      try {
+        // Fetch open severe storms from EONET
+        const resp = await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=open');
+        if (!resp.ok) throw new Error('Failed to fetch storm data');
+        const data = await resp.json();
+        // Each event is a storm system
+        (data.events || []).forEach(event => {
+          // Find the latest geometry with coordinates
+          const latestGeom = (event.geometry || []).slice(-1)[0];
+          if (latestGeom && latestGeom.coordinates && Array.isArray(latestGeom.coordinates)) {
+            let lat, lon;
+            // EONET coordinates are [lon, lat] for points, or arrays for polygons
+            if (typeof latestGeom.coordinates[0] === 'number') {
+              [lon, lat] = latestGeom.coordinates;
+            } else if (Array.isArray(latestGeom.coordinates[0])) {
+              // If it's a polygon, use centroid of first ring
+              const ring = latestGeom.coordinates[0];
+              const n = ring.length;
+              let sumLat = 0, sumLon = 0;
+              ring.forEach(([x, y]) => { sumLon += x; sumLat += y; });
+              lat = sumLat / n;
+              lon = sumLon / n;
+            }
+            // Draw a circle (radius in km, e.g., 200km for visualization)
+            const circle = L.circle([lat, lon], {
+              color: 'red',
+              fillColor: '#f03',
+              fillOpacity: 0.3,
+              radius: 200000 // 200km
+            });
+            // Add a label with the storm name
+            const name = event.title || 'Storm';
+            circle.bindPopup(`<b>${name}</b>`);
+            circle.addTo(stormLayerGroup);
+          }
+        });
+      } catch (err) {
+        console.error('Storm fetch error:', err);
+      }
+    }
+
+    // Fetch storms on load and every 30 minutes
+    fetchAndDisplayStorms();
+    setInterval(fetchAndDisplayStorms, 30 * 60 * 1000);
+
+    // Optional: Add a button to refresh storms manually
+    const stormBtn = document.createElement('button');
+    stormBtn.textContent = 'Refresh Storms';
+    stormBtn.title = 'Fetch and display current storm systems';
+    stormBtn.onclick = fetchAndDisplayStorms;
+    document.querySelector('.toolbar').appendChild(stormBtn);
+  </script>
+</body>
+</html>
