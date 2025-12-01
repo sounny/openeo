@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <title>Open EO Viewer (Leaflet + GIBS + Hurricane)</title>
   <title>GeoViewer (Leaflet + GIBS)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -12,6 +13,9 @@
   <!-- Leaflet.draw -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css">
   <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+  <!-- Polyline Decorator for arrows -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.min.js"></script>
 
   <style>
     :root {
@@ -141,7 +145,6 @@
 
     map.zoomControl.setPosition('bottomleft');
 
-    // Attribution (GIBS + Leaflet)
     map.attributionControl.setPrefix(false);
     map.attributionControl.addAttribution('Imagery © NASA EOSDIS GIBS');
     map.attributionControl.addAttribution('© Leaflet contributors');
@@ -218,12 +221,8 @@
       a.remove();
     });
 
-    // --- NASA GIBS WMS (basic imagery) --------------------------------------
-    // WMS endpoint in EPSG:3857 (Web Mercator); no key required.
-    // Docs: https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi?
+    // --- NASA GIBS WMS ------------------------------------------------------
     const GIBS_WMS = 'https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi?';
-
-    // One transparent overlay with boundaries/labels to help orientation.
     const overlays = L.tileLayer.wms(GIBS_WMS, {
       layers: 'Coastlines,Reference_Features',
       format: 'image/png',
@@ -231,6 +230,7 @@
       version: '1.3.0'
     }).addTo(map);
 
+    let currentImageryLayer
     let currentImageryLayer = null;
 
     function buildImageryLayer(layerId, dateISO) {
