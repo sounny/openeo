@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Open EO Viewer (Leaflet + GIBS)</title>
+  <title>GeoViewer (Leaflet + GIBS)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Leaflet core -->
@@ -14,20 +14,61 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
   <style>
+    :root {
+      --bg-color: #fff;
+      --text-color: #000;
+      --toolbar-bg: rgba(255,255,255,.92);
+      --input-bg: #fff;
+      --input-border: #ccc;
+      --box-shadow: rgba(0,0,0,.12);
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #1a1a1a;
+      --text-color: #fff;
+      --toolbar-bg: rgba(40,40,40,.92);
+      --input-bg: #333;
+      --input-border: #555;
+      --box-shadow: rgba(0,0,0,.3);
+    }
+
     html, body, #map { height: 100%; margin: 0; }
+    body { background-color: var(--bg-color); color: var(--text-color); }
+    
     .toolbar {
       position: absolute; z-index: 1000; top: 10px; left: 10px;
-      background: rgba(255,255,255,.92); backdrop-filter: blur(4px);
-      border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.12);
+      background: var(--toolbar-bg); backdrop-filter: blur(4px);
+      border-radius: 8px; box-shadow: 0 2px 10px var(--box-shadow);
       padding: 10px; font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
     .toolbar label { margin-right: 6px; font-weight: 600; }
     .toolbar select, .toolbar input[type="date"], .toolbar button {
-      font: inherit; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px;
-      background: #fff; margin-right: 6px;
+      font: inherit; padding: 6px 8px; 
+      border: 1px solid var(--input-border); border-radius: 6px;
+      background: var(--input-bg); color: var(--text-color);
+      margin-right: 6px;
     }
     .toolbar button { cursor: pointer; }
+    .toolbar button:hover { background: var(--input-border); }
     .leaflet-control-attribution { font-size: 11px; }
+
+    /* Dark mode adjustments for Leaflet controls */
+    [data-theme="dark"] .leaflet-control-zoom a {
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      border-color: var(--input-border);
+    }
+    [data-theme="dark"] .leaflet-control-zoom a:hover {
+      background-color: var(--input-border);
+    }
+    [data-theme="dark"] .leaflet-control-attribution {
+      background: rgba(40,40,40,.8) !important;
+      color: #ddd;
+    }
+    [data-theme="dark"] .leaflet-draw-toolbar a {
+      background-color: var(--input-bg);
+      border-color: var(--input-border);
+    }
   </style>
 </head>
 <body>
@@ -41,6 +82,7 @@
       Select a layer to see its description.
     </div>
   </div>
+  <div id="area-info-box" style="display:none; position:absolute; z-index:2000; min-width:220px; background:rgba(255,255,255,0.97); border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.18); padding:14px 18px; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; pointer-events:none;"></div>
 
   <div class="toolbar">
     <label for="layer">Layer</label>
@@ -62,10 +104,30 @@
     <input type="date" id="date" />
 
     <button id="export">Export GeoJSON</button>
+    <button id="theme-toggle" title="Toggle dark mode">🌓</button>
   </div>
 
   <script>
 
+    // --- Theme management --------------------------------------------------
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+    }
+
+    // Check for saved theme preference or system preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      setTheme(savedTheme);
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setTheme('dark');
+    }
+
+    // Theme toggle button
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    });
 
     // --- Map setup -----------------------------------------------------------
     const todayISO = new Date().toISOString().slice(0,10);
@@ -102,7 +164,46 @@
 
     map.on(L.Draw.Event.CREATED, (e) => {
       drawnItems.addLayer(e.layer);
+      attachAreaHoverEvents(e.layer);
     });
+
+    // Attach hover events to all drawn layers (for edit mode)
+    drawnItems.on('layeradd', function(e) {
+      attachAreaHoverEvents(e.layer);
+    });
+    // --- Area info box logic ---
+    const infoBox = document.getElementById('area-info-box');
+
+    function attachAreaHoverEvents(layer) {
+      layer.on('mouseover', function(e) {
+        // Get mouse position relative to map container
+        const mapContainer = map.getContainer();
+        const mouseEvent = e.originalEvent;
+        // Position the info box near the mouse
+        infoBox.style.left = (mouseEvent.clientX + 16) + 'px';
+        infoBox.style.top = (mouseEvent.clientY - 10) + 'px';
+        // Fill info box with placeholder data
+        infoBox.innerHTML = `
+          <b>Selected Area Info</b><br>
+          <ul style="margin:8px 0 0 0; padding-left:18px;">
+            <li><b>Wind speed:</b> <span style="color:#0077b6">12.3 m/s</span> <i>(placeholder)</i></li>
+            <li><b>Elevation:</b> 150 m <i>(placeholder)</i></li>
+            <li><b>Bathymetry:</b> N/A <i>(placeholder)</i></li>
+            <li><b>Countries:</b> France, Spain <i>(placeholder)</i></li>
+          </ul>
+        `;
+        infoBox.style.display = 'block';
+      });
+      layer.on('mousemove', function(e) {
+        // Move the info box with the mouse
+        const mouseEvent = e.originalEvent;
+        infoBox.style.left = (mouseEvent.clientX + 16) + 'px';
+        infoBox.style.top = (mouseEvent.clientY - 10) + 'px';
+      });
+      layer.on('mouseout', function() {
+        infoBox.style.display = 'none';
+      });
+    }
 
     document.getElementById('export').addEventListener('click', () => {
       const fc = drawnItems.toGeoJSON();
@@ -197,6 +298,67 @@
       setImageryLayer(e.target.value, dateISO);
       updateLayerInfo(e.target.value);
     });
+
+    // --- Storm System Visualization (NASA EONET) ------------------------------
+    // Source: NASA EONET API for natural events (storms, cyclones, etc.)
+    // Docs: https://eonet.gsfc.nasa.gov/docs/v3
+    // Example endpoint: https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=open
+
+    const stormLayerGroup = L.layerGroup().addTo(map);
+
+    async function fetchAndDisplayStorms() {
+      stormLayerGroup.clearLayers();
+      try {
+        // Fetch open severe storms from EONET
+        const resp = await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=open');
+        if (!resp.ok) throw new Error('Failed to fetch storm data');
+        const data = await resp.json();
+        // Each event is a storm system
+        (data.events || []).forEach(event => {
+          // Find the latest geometry with coordinates
+          const latestGeom = (event.geometry || []).slice(-1)[0];
+          if (latestGeom && latestGeom.coordinates && Array.isArray(latestGeom.coordinates)) {
+            let lat, lon;
+            // EONET coordinates are [lon, lat] for points, or arrays for polygons
+            if (typeof latestGeom.coordinates[0] === 'number') {
+              [lon, lat] = latestGeom.coordinates;
+            } else if (Array.isArray(latestGeom.coordinates[0])) {
+              // If it's a polygon, use centroid of first ring
+              const ring = latestGeom.coordinates[0];
+              const n = ring.length;
+              let sumLat = 0, sumLon = 0;
+              ring.forEach(([x, y]) => { sumLon += x; sumLat += y; });
+              lat = sumLat / n;
+              lon = sumLon / n;
+            }
+            // Draw a circle (radius in km, e.g., 200km for visualization)
+            const circle = L.circle([lat, lon], {
+              color: 'red',
+              fillColor: '#f03',
+              fillOpacity: 0.3,
+              radius: 200000 // 200km
+            });
+            // Add a label with the storm name
+            const name = event.title || 'Storm';
+            circle.bindPopup(`<b>${name}</b>`);
+            circle.addTo(stormLayerGroup);
+          }
+        });
+      } catch (err) {
+        console.error('Storm fetch error:', err);
+      }
+    }
+
+    // Fetch storms on load and every 30 minutes
+    fetchAndDisplayStorms();
+    setInterval(fetchAndDisplayStorms, 30 * 60 * 1000);
+
+    // Optional: Add a button to refresh storms manually
+    const stormBtn = document.createElement('button');
+    stormBtn.textContent = 'Refresh Storms';
+    stormBtn.title = 'Fetch and display current storm systems';
+    stormBtn.onclick = fetchAndDisplayStorms;
+    document.querySelector('.toolbar').appendChild(stormBtn);
   </script>
 </body>
 </html>
