@@ -75,8 +75,9 @@ Open EO Viewer is a lightweight Leaflet application for exploring NASA's Global 
 
 - **Leaflet + GIBS integration** – browse daily NASA imagery without needing an API key.
 - **Layer switching** – toggle between VIIRS and MODIS true-color layers with a single dropdown.
-- **Date selection** – start from the latest NOAA-20 true-color image (2025-06-06) or choose any other available day.
-- **Drawing tools** – capture polygons or rectangles on top of the imagery and export them as GeoJSON.
+- **Date selection & quick navigation** – start from the latest available imagery, jump back/forward one day, or return to the newest date with dedicated buttons.
+- **Drawing tools with measurements** – capture polygons or rectangles on top of the imagery, view live area/perimeter/bounding box stats on hover, and export them as GeoJSON, KML, or GeoTIFF snapshots.
+- **Storm awareness** – visualize current severe storms from NASA EONET and see when the overlay last refreshed.
 
 ## Getting started
 
