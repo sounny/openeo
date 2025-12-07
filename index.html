@@ -134,6 +134,8 @@
 
   <script>
 
+    // Acknowledgment: Student collaborator credited in the original PR (see PR notes for details).
+
     // --- Theme management --------------------------------------------------
     function setTheme(theme) {
       document.documentElement.setAttribute('data-theme', theme);
@@ -224,6 +226,7 @@
         const areaSqMeters = turf.area(feature);
         const areaSqKm = areaSqMeters / 1e6;
         const perimeterKm = turf.length(feature, { units: 'kilometers' });
+        // Geometry helpers for quick measurements and tooltips
         const bbox = turf.bbox(feature);
         const centroid = turf.centroid(feature).geometry.coordinates;
         const vertices = (feature.geometry.coordinates[0] || []).length;
@@ -252,6 +255,13 @@
     }
 
     // --- UI / Exporting -----------------------------------------------------
+    // Reused helper to wait until the current imagery tiles finish loading before capture
+    async function waitForImageryLoad() {
+      if (!currentImageryLayer) return;
+      if (!currentImageryLayer._loading) return;
+      await new Promise(resolve => currentImageryLayer.once('load', resolve));
+    }
+
     // Helper for downloading content
     function download(filename, content, mime) {
       const blob = new Blob([content], { type: mime || 'application/octet-stream' });
@@ -271,13 +281,7 @@
       document.body.style.cursor = 'wait';
 
       // Ensure all tiles are loaded before exporting
-      await new Promise(resolve => {
-        if (!currentImageryLayer._loading) {
-          resolve();
-        } else {
-          currentImageryLayer.once('load', () => resolve());
-        }
-      });
+      await waitForImageryLoad();
 
       const mapEl = document.getElementById('map');
       mapEl.classList.add('exporting'); // Hide controls
@@ -324,13 +328,7 @@
 
       // 1. Capture map as a PNG data URL
       // Ensure all tiles are loaded before exporting
-      await new Promise(resolve => {
-        if (!currentImageryLayer._loading) {
-          resolve();
-        } else {
-          currentImageryLayer.once('load', () => resolve());
-        }
-      });
+      await waitForImageryLoad();
 
       const mapEl = document.getElementById('map');
       mapEl.classList.add('exporting'); // Hide controls
