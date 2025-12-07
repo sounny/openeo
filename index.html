@@ -2,8 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>openEO Viewer (Leaflet + GIBS)</title>
+  <title>openEO Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Explore NASA's Global Imagery Browse Services (GIBS) with openEO Viewer - a lightweight Leaflet mapping application." />
+
+  <!-- Google Fonts - Inter for modern typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Leaflet core -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
@@ -17,283 +23,741 @@
   <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.1.6/dist/dom-to-image-more.min.js"></script>
   <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/geotiff"></script>
-  <!-- Polyline Decorator for arrows -->
   <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.min.js"></script>
-  <!-- Turf.js for geospatial measurements -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
 
   <style>
     :root {
-      --bg-color: #fff;
-      --text-color: #000;
-      --toolbar-bg: rgba(255,255,255,.92);
+      --bg-color: #f8fafc;
+      --text-color: #1e293b;
+      --text-muted: #64748b;
+      --sidebar-bg: rgba(255,255,255,0.95);
+      --panel-bg: rgba(255,255,255,0.92);
       --input-bg: #fff;
-      --input-border: #ccc;
-      --box-shadow: rgba(0,0,0,.12);
+      --input-border: #e2e8f0;
+      --input-focus: #3b82f6;
+      --accent: #3b82f6;
+      --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      --box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      --box-shadow-lg: 0 10px 40px rgba(0,0,0,0.12);
+      --border-radius: 12px;
+      --sidebar-width: 320px;
+      --sidebar-collapsed: 56px;
     }
 
     [data-theme="dark"] {
-      --bg-color: #1a1a1a;
-      --text-color: #fff;
-      --toolbar-bg: rgba(40,40,40,.92);
-      --input-bg: #333;
-      --input-border: #555;
-      --box-shadow: rgba(0,0,0,.3);
+      --bg-color: #0f172a;
+      --text-color: #f1f5f9;
+      --text-muted: #94a3b8;
+      --sidebar-bg: rgba(30,41,59,0.95);
+      --panel-bg: rgba(30,41,59,0.92);
+      --input-bg: #1e293b;
+      --input-border: #334155;
+      --box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      --box-shadow-lg: 0 10px 40px rgba(0,0,0,0.4);
     }
 
-    html, body, #map { height: 100%; margin: 0; }
-    body { background-color: var(--bg-color); color: var(--text-color); }
-    
-    .toolbar {
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      overflow: hidden;
+    }
+
+    #map {
       position: absolute;
-      z-index: 1000;
-      top: 12px;
-      left: 12px;
-      background: var(--toolbar-bg);
-      backdrop-filter: blur(6px);
-      border-radius: 12px;
-      box-shadow: 0 10px 30px var(--box-shadow);
-      padding: 12px;
-      font: 13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-      min-width: 280px;
-      max-width: 360px;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 1;
     }
 
-    .toolbar .header {
+    /* === SIDEBAR === */
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0;
+      width: var(--sidebar-width);
+      height: 100vh;
+      background: var(--sidebar-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: var(--box-shadow-lg);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-right: 1px solid var(--input-border);
+    }
+
+    .sidebar.collapsed {
+      width: var(--sidebar-collapsed);
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--input-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      font-weight: 700;
-      letter-spacing: 0.01em;
+      min-height: 72px;
     }
 
-    .toolbar .field {
-      display: grid;
-      grid-template-columns: minmax(72px, auto) 1fr;
+    .logo {
+      display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-color);
     }
 
-    .toolbar label {
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent-gradient);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: white;
+    }
+
+    .logo-text {
+      font-size: 20px;
+      font-weight: 300;
+      letter-spacing: -0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity 0.2s, width 0.3s;
+    }
+
+    .logo-text span {
       font-weight: 600;
-      font-size: 12px;
-      color: rgba(0,0,0,0.65);
     }
 
-    [data-theme="dark"] .toolbar label { color: rgba(255,255,255,0.7); }
+    .sidebar.collapsed .logo-text {
+      opacity: 0;
+      width: 0;
+    }
 
-    .toolbar select,
-    .toolbar input[type="date"],
-    .toolbar button {
-      font: inherit;
-      padding: 7px 9px;
+    .sidebar-toggle {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, color 0.2s;
+      flex-shrink: 0;
+    }
+
+    .sidebar-toggle:hover {
+      background: rgba(0,0,0,0.05);
+      color: var(--text-color);
+    }
+
+    [data-theme="dark"] .sidebar-toggle:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      opacity: 1;
+      transition: opacity 0.2s;
+    }
+
+    .sidebar.collapsed .sidebar-content {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .sidebar-section {
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+
+    .field-group {
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: var(--border-radius);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .field-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    select, input[type="date"] {
+      width: 100%;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 14px;
       border: 1px solid var(--input-border);
       border-radius: 8px;
       background: var(--input-bg);
       color: var(--text-color);
-      transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
-    }
-
-    .toolbar button {
+      transition: border-color 0.2s, box-shadow 0.2s;
       cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      white-space: nowrap;
     }
 
-    .toolbar button:hover { background: rgba(0,0,0,0.06); }
-    [data-theme="dark"] .toolbar button:hover { background: rgba(255,255,255,0.08); }
+    select:focus, input[type="date"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
 
-    .pill-row {
+    .date-controls {
       display: flex;
-      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .date-btn {
+      flex: 1;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      background: var(--input-bg);
+      color: var(--text-color);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .date-btn:hover {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .layer-info {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      padding: 12px;
+      background: rgba(59, 130, 246, 0.05);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+
+    [data-theme="dark"] .layer-info {
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .storm-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 12px;
+      background: var(--input-bg);
+      border-radius: 8px;
+      border: 1px solid var(--input-border);
+      display: flex;
+      align-items: center;
       gap: 8px;
     }
 
-    .pill-row .pill {
-      border-radius: 999px;
-      border-color: transparent;
-      background: rgba(0,0,0,0.05);
+    .storm-dot {
+      width: 8px;
+      height: 8px;
+      background: #ef4444;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
     }
 
-    [data-theme="dark"] .pill-row .pill {
-      background: rgba(255,255,255,0.08);
-      border-color: var(--input-border);
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
     }
 
-    .ghost {
-      border-color: transparent;
-      background: transparent;
-    }
-
-    .toolbar .meta {
-      border-radius: 10px;
-      padding: 10px;
-      background: rgba(0,0,0,0.04);
-      color: rgba(0,0,0,0.7);
-      font-size: 12px;
-      display: grid;
-      gap: 6px;
-    }
-
-    [data-theme="dark"] .toolbar .meta {
-      background: rgba(255,255,255,0.05);
-      color: rgba(255,255,255,0.8);
-    }
-
-    .chip-row {
+    /* Sidebar Footer */
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid var(--input-border);
       display: flex;
+      gap: 8px;
+    }
+
+    .sidebar.collapsed .sidebar-footer {
+      flex-direction: column;
+      padding: 8px;
+    }
+
+    .footer-btn {
+      flex: 1;
+      padding: 10px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      background: var(--input-bg);
+      color: var(--text-color);
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       gap: 6px;
-      flex-wrap: wrap;
-      justify-content: flex-start;
     }
 
-    .chip-row .chip {
-      padding: 6px 10px;
-      border-radius: 10px;
-      border: 1px solid transparent;
-      background: rgba(0,0,0,0.05);
-      font-weight: 600;
+    .footer-btn:hover {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
     }
 
-    [data-theme="dark"] .chip-row .chip {
-      background: rgba(255,255,255,0.08);
-      border-color: var(--input-border);
-    }
-
-    .chip[aria-pressed="true"] {
-      border-color: var(--input-border);
-    }
-
-    .toolbar.collapsed {
-      padding-bottom: 10px;
-    }
-
-    .toolbar.collapsed #panel-body {
+    .sidebar.collapsed .footer-btn span {
       display: none;
     }
 
-    .micro {
-      font-size: 12px;
-      opacity: 0.85;
+    /* === TOP-RIGHT CONTROLS === */
+    .top-controls {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      gap: 8px;
     }
-    .leaflet-control-attribution { font-size: 11px; }
 
-    /* Dark mode adjustments for Leaflet controls */
-    [data-theme="dark"] .leaflet-control-zoom a {
-      background-color: var(--input-bg);
+    .control-panel {
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      border: 1px solid var(--input-border);
+      padding: 8px;
+      display: flex;
+      gap: 4px;
+    }
+
+    .ctrl-btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      background: transparent;
       color: var(--text-color);
-      border-color: var(--input-border);
-    }
-    [data-theme="dark"] .leaflet-control-zoom a:hover {
-      background-color: var(--input-border);
-    }
-    [data-theme="dark"] .leaflet-control-attribution {
-      background: rgba(40,40,40,.8) !important;
-      color: #ddd;
-    }
-    [data-theme="dark"] .leaflet-draw-toolbar a {
-      background-color: var(--input-bg);
-      border-color: var(--input-border);
-    }
-    
-    /* Hide controls during export */
-    .exporting .leaflet-control-container {
-      display: none !important;
+      cursor: pointer;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      font-size: 16px;
     }
 
+    .ctrl-btn:hover {
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--accent);
+    }
+
+    .ctrl-btn.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .ctrl-btn[title]:hover::after {
+      content: attr(title);
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 8px;
+      padding: 6px 12px;
+      background: var(--text-color);
+      color: var(--bg-color);
+      font-size: 12px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    /* Export panel */
+    .export-panel {
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      border: 1px solid var(--input-border);
+      padding: 8px;
+      display: flex;
+      gap: 4px;
+    }
+
+    .export-btn {
+      padding: 8px 14px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      background: transparent;
+      color: var(--text-color);
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .export-btn:hover {
+      background: var(--accent);
+      color: white;
+    }
+
+    /* === INFO MODAL === */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--sidebar-bg);
+      border-radius: 16px;
+      box-shadow: var(--box-shadow-lg);
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      transform: translateY(20px);
+      transition: transform 0.3s;
+    }
+
+    .modal-overlay.active .modal {
+      transform: translateY(0);
+    }
+
+    .modal-header {
+      padding: 24px 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 24px;
+      font-weight: 300;
+    }
+
+    .modal-title span {
+      font-weight: 600;
+    }
+
+    .modal-close {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: var(--input-bg);
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 8px;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+      background: #ef4444;
+      color: white;
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .modal-body p {
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin: 0 0 16px;
+    }
+
+    .modal-body h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 24px 0 12px;
+      color: var(--text-color);
+    }
+
+    .modal-body ul {
+      color: var(--text-muted);
+      padding-left: 20px;
+      margin: 0;
+    }
+
+    .modal-body li {
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    /* === AREA INFO BOX === */
     .area-info {
       position: absolute;
       z-index: 2000;
       min-width: 220px;
-      background: var(--toolbar-bg);
-      border-radius: 10px;
-      box-shadow: 0 10px 30px var(--box-shadow);
-      padding: 14px 18px;
-      font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      border-radius: 12px;
+      box-shadow: var(--box-shadow-lg);
+      padding: 16px;
+      font-size: 13px;
       pointer-events: none;
       display: none;
       color: var(--text-color);
+      border: 1px solid var(--input-border);
+    }
+
+    .area-info ul {
+      margin: 8px 0 0;
+      padding-left: 16px;
+    }
+
+    .area-info li {
+      margin-bottom: 4px;
+    }
+
+    /* Leaflet overrides */
+    .leaflet-control-attribution {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      background: var(--panel-bg) !important;
+      backdrop-filter: blur(10px);
+    }
+
+    [data-theme="dark"] .leaflet-control-attribution {
+      color: var(--text-muted);
+    }
+
+    .leaflet-control-zoom {
+      border: none !important;
+      box-shadow: var(--box-shadow) !important;
+      border-radius: 12px !important;
+      overflow: hidden;
+    }
+
+    .leaflet-control-zoom a {
+      background: var(--panel-bg) !important;
+      color: var(--text-color) !important;
+      border: none !important;
+      width: 36px !important;
+      height: 36px !important;
+      line-height: 36px !important;
+      font-size: 18px !important;
+    }
+
+    .leaflet-control-zoom a:hover {
+      background: var(--accent) !important;
+      color: white !important;
+    }
+
+    .leaflet-draw-toolbar a {
+      background-color: var(--panel-bg) !important;
+      border: none !important;
+    }
+
+    .leaflet-draw-toolbar {
+      box-shadow: var(--box-shadow) !important;
+      border-radius: 12px !important;
+      overflow: hidden;
+    }
+
+    .exporting .leaflet-control-container,
+    .exporting .sidebar,
+    .exporting .top-controls {
+      display: none !important;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 50vh;
+        top: auto;
+        bottom: 0;
+        border-right: none;
+        border-top: 1px solid var(--input-border);
+        border-radius: 20px 20px 0 0;
+      }
+
+      .sidebar.collapsed {
+        width: 100%;
+        max-height: 60px;
+      }
+
+      .top-controls {
+        top: 12px;
+        right: 12px;
+        flex-wrap: wrap;
+      }
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <div id="area-info-box" class="area-info"></div>
-
-  <div class="toolbar" id="control-panel">
-    <div class="header">
-      <span style="display:flex; align-items:center; gap:6px;">
-        <span style="width:8px; height:8px; border-radius:50%; background:linear-gradient(120deg, #4ac2ff, #9c7bff);"></span>
-        openEO Viewer
-      </span>
-      <div class="chip-row">
-        <button id="collapse-toggle" class="ghost chip" aria-expanded="true" title="Collapse toolbar">▾</button>
-        <button id="theme-toggle" class="ghost chip" title="Toggle light/dark mode">🌗</button>
-      </div>
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <a href="#" class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        </div>
+        <div class="logo-text">open<span>EO</span></div>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
     </div>
 
-    <div id="panel-body">
-      <div class="field">
-        <label for="layer">Layer</label>
-        <select id="layer">
-          <!-- GIBS layer identifiers (True Color & Infrared) -->
-          <option value="VIIRS_SNPP_CorrectedReflectance_TrueColor">VIIRS SNPP True Color</option>
-          <option value="VIIRS_NOAA20_CorrectedReflectance_TrueColor" selected>VIIRS NOAA-20 True Color</option>
-          <option value="MODIS_Terra_CorrectedReflectance_TrueColor">MODIS Terra True Color</option>
-          <option value="MODIS_Terra_CorrectedReflectance_Bands721">MODIS Terra Infrared (Bands 7-2-1)</option>
-          <option value="MODIS_Terra_CorrectedReflectance_Bands367">MODIS Terra Shortwave IR (Bands 3-6-7)</option>
-          <option value="MODIS_Terra_CorrectedReflectance_Bands431">MODIS Terra Natural Color (Bands 4-3-1)</option>
-          <option value="MODIS_Terra_CorrectedReflectance_Bands621">MODIS Terra Shortwave IR (Bands 6-2-1)</option>
-          <option value="VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1">VIIRS SNPP Infrared (Bands M11-I2-I1)</option>
-          <option value="VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2">VIIRS SNPP Shortwave IR (Bands M3-M11-I2)</option>
-          <option value="VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3">VIIRS SNPP Land/Vegetation (Bands I1-I2-I3)</option>
-        </select>
+    <div class="sidebar-content">
+      <div class="sidebar-section">
+        <div class="section-title">Imagery Layer</div>
+        <div class="field-group">
+          <label class="field-label" for="layer">Select Layer</label>
+          <select id="layer">
+            <option value="VIIRS_SNPP_CorrectedReflectance_TrueColor">VIIRS SNPP True Color</option>
+            <option value="VIIRS_NOAA20_CorrectedReflectance_TrueColor" selected>VIIRS NOAA-20 True Color</option>
+            <option value="MODIS_Terra_CorrectedReflectance_TrueColor">MODIS Terra True Color</option>
+            <option value="MODIS_Terra_CorrectedReflectance_Bands721">MODIS Terra Infrared (7-2-1)</option>
+            <option value="MODIS_Terra_CorrectedReflectance_Bands367">MODIS Terra Shortwave IR (3-6-7)</option>
+            <option value="MODIS_Terra_CorrectedReflectance_Bands431">MODIS Terra Natural Color (4-3-1)</option>
+            <option value="MODIS_Terra_CorrectedReflectance_Bands621">MODIS Terra Shortwave IR (6-2-1)</option>
+            <option value="VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1">VIIRS SNPP Infrared (M11-I2-I1)</option>
+            <option value="VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2">VIIRS SNPP Shortwave IR (M3-M11-I2)</option>
+            <option value="VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3">VIIRS SNPP Land/Vegetation (I1-I2-I3)</option>
+          </select>
+        </div>
+        <div class="layer-info" id="layer-info">Select a layer to see its description.</div>
       </div>
 
-      <div class="field">
-        <label for="date">Date</label>
-        <div class="chip-row" style="flex:1;">
-          <input type="date" id="date" style="flex:1; min-width:140px;" />
-          <button id="prev-day" class="chip" title="Go to the previous day">◀︎</button>
-          <button id="next-day" class="chip" title="Go to the next day">▶︎</button>
-          <button id="latest-day" class="chip" title="Jump to the latest available imagery">Latest</button>
+      <div class="sidebar-section">
+        <div class="section-title">Date Selection</div>
+        <div class="field-group">
+          <label class="field-label" for="date">Imagery Date</label>
+          <input type="date" id="date" />
+          <div class="date-controls">
+            <button class="date-btn" id="prev-day">◀ Previous</button>
+            <button class="date-btn" id="next-day">Next ▶</button>
+            <button class="date-btn" id="latest-day">Latest</button>
+          </div>
         </div>
       </div>
 
-      <div class="pill-row">
-        <button id="export-png" class="pill" title="Save as image">PNG</button>
-        <button id="export-geotiff" class="pill" title="Save as GeoTIFF">GeoTIFF</button>
-        <button id="export-kml" class="pill" title="Save KML from drawings">KML</button>
-        <button id="export-geojson" class="pill" title="Save GeoJSON from drawings">GeoJSON</button>
-        <button id="zoom-drawings" class="pill" title="Zoom to your drawings">Zoom AOI</button>
-        <button id="clear-drawings" class="pill" title="Remove all drawn features">Clear AOI</button>
+      <div class="sidebar-section">
+        <div class="section-title">Storm Activity</div>
+        <div class="storm-status" id="storm-status">
+          <span class="storm-dot"></span>
+          <span>Loading storm data...</span>
+        </div>
       </div>
+    </div>
 
-      <div class="meta">
-        <div id="layer-info">Select a layer to see its description.</div>
-        <div id="storm-status" class="micro">Storms: loading…</div>
+    <div class="sidebar-footer">
+      <button class="footer-btn" id="info-btn" title="About openEO">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <span>Info</span>
+      </button>
+      <button class="footer-btn" id="theme-toggle" title="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <span>Theme</span>
+      </button>
+      <button class="footer-btn" id="refresh-storms" title="Refresh storms">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        <span>Storms</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Top-right controls -->
+  <div class="top-controls">
+    <div class="export-panel">
+      <button class="export-btn" id="export-png" title="Export as PNG">PNG</button>
+      <button class="export-btn" id="export-geotiff" title="Export as GeoTIFF">GeoTIFF</button>
+      <button class="export-btn" id="export-kml" title="Export as KML">KML</button>
+      <button class="export-btn" id="export-geojson" title="Export as GeoJSON">GeoJSON</button>
+    </div>
+    <div class="control-panel">
+      <button class="ctrl-btn" id="zoom-drawings" title="Zoom to drawings">🔍</button>
+      <button class="ctrl-btn" id="clear-drawings" title="Clear drawings">🗑️</button>
+    </div>
+  </div>
+
+  <!-- Info Modal -->
+  <div class="modal-overlay" id="info-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">open<span>EO</span> Viewer</h2>
+        <button class="modal-close" id="modal-close">×</button>
+      </div>
+      <div class="modal-body">
+        <p>Open EO Viewer is a lightweight Leaflet application for exploring NASA's Global Imagery Browse Services (GIBS) layers. It lets you switch between common true-color products, pick a date, and sketch areas of interest directly on the map.</p>
+        
+        <h3>Features</h3>
+        <ul>
+          <li><strong>Leaflet + GIBS integration</strong> – Browse daily NASA imagery without needing an API key</li>
+          <li><strong>Layer switching</strong> – Toggle between VIIRS and MODIS true-color layers</li>
+          <li><strong>Date selection</strong> – Start from latest imagery, jump back/forward one day</li>
+          <li><strong>Drawing tools</strong> – Capture polygons or rectangles, view live area measurements</li>
+          <li><strong>Export options</strong> – Save as GeoJSON, KML, PNG, or GeoTIFF</li>
+          <li><strong>Storm awareness</strong> – Visualize current severe storms from NASA EONET</li>
+        </ul>
+
+        <h3>About This Project</h3>
+        <p>This codebase is part of a pedagogical exercise designed to teach students software engineering fundamentals using AI assistance and GitHub collaboration.</p>
       </div>
     </div>
   </div>
 
+  <div id="area-info-box" class="area-info"></div>
+
   <script>
-
-    // Acknowledgment: Student collaborator credited in the original PR (see PR notes for details).
-
-    // --- Theme management --------------------------------------------------
+    // Theme management
     function setTheme(theme) {
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('theme', theme);
     }
 
-    // Check for saved theme preference or system preference
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
       setTheme(savedTheme);
@@ -301,34 +765,43 @@
       setTheme('dark');
     }
 
-    // Theme toggle button
     document.getElementById('theme-toggle').addEventListener('click', () => {
       const currentTheme = document.documentElement.getAttribute('data-theme');
       setTheme(currentTheme === 'dark' ? 'light' : 'dark');
     });
 
-    const controlPanel = document.getElementById('control-panel');
-    const panelBody = document.getElementById('panel-body');
-    const collapseToggle = document.getElementById('collapse-toggle');
+    // Sidebar toggle
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
 
-    function setCollapsed(isCollapsed) {
-      controlPanel.classList.toggle('collapsed', isCollapsed);
-      panelBody.hidden = isCollapsed;
-      collapseToggle.setAttribute('aria-expanded', (!isCollapsed).toString());
-      collapseToggle.textContent = isCollapsed ? '▸' : '▾';
-      collapseToggle.title = isCollapsed ? 'Expand toolbar' : 'Collapse toolbar';
-      localStorage.setItem('panelCollapsed', isCollapsed ? '1' : '0');
+    function setSidebarCollapsed(collapsed) {
+      sidebar.classList.toggle('collapsed', collapsed);
+      sidebarToggle.innerHTML = collapsed 
+        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
+        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>';
+      localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
     }
 
-    const savedCollapse = localStorage.getItem('panelCollapsed');
-    const prefersCollapsed = window.matchMedia('(max-width: 640px)').matches;
-    setCollapsed(savedCollapse ? savedCollapse === '1' : prefersCollapsed);
+    const savedCollapse = localStorage.getItem('sidebarCollapsed');
+    setSidebarCollapsed(savedCollapse === '1');
 
-    collapseToggle.addEventListener('click', () => {
-      setCollapsed(!controlPanel.classList.contains('collapsed'));
+    sidebarToggle.addEventListener('click', () => {
+      setSidebarCollapsed(!sidebar.classList.contains('collapsed'));
     });
 
-    // --- Map setup -----------------------------------------------------------
+    // Info modal
+    const infoModal = document.getElementById('info-modal');
+    document.getElementById('info-btn').addEventListener('click', () => {
+      infoModal.classList.add('active');
+    });
+    document.getElementById('modal-close').addEventListener('click', () => {
+      infoModal.classList.remove('active');
+    });
+    infoModal.addEventListener('click', (e) => {
+      if (e.target === infoModal) infoModal.classList.remove('active');
+    });
+
+    // Map setup
     const todayISO = new Date().toISOString().slice(0,10);
     function formatDate(dateObj) {
       return dateObj.toISOString().slice(0, 10);
@@ -336,7 +809,6 @@
 
     function getInitialImageryDate() {
       const now = new Date();
-      // GIBS daily imagery can lag; favor yesterday unless we're well past the refresh window
       const initial = new Date(now);
       if (now.getUTCHours() < 18) {
         initial.setUTCDate(initial.getUTCDate() - 1);
@@ -349,19 +821,20 @@
 
     const map = L.map('map', {
       center: [20, 0],
-      zoom: 3
+      zoom: 3,
+      zoomControl: false
     });
 
-    map.zoomControl.setPosition('bottomleft');
+    L.control.zoom({ position: 'topright' }).addTo(map);
 
     map.attributionControl.setPrefix(false);
-    map.attributionControl.addAttribution('Imagery (c) NASA EOSDIS GIBS');
-    map.attributionControl.addAttribution('Map data (c) Leaflet contributors');
+    map.attributionControl.addAttribution('Imagery © NASA EOSDIS GIBS');
+    map.attributionControl.addAttribution('Map data © Leaflet contributors');
 
-    // --- Drawing layer + controls -------------------------------------------
+    // Drawing layer
     const drawnItems = new L.FeatureGroup().addTo(map);
     const drawControl = new L.Control.Draw({
-      position: 'bottomleft',
+      position: 'topright',
       edit: { featureGroup: drawnItems },
       draw: {
         polygon: { allowIntersection: false, showArea: true },
@@ -379,18 +852,15 @@
       attachAreaHoverEvents(e.layer);
     });
 
-    // Attach hover events to all drawn layers (for edit mode)
     drawnItems.on('layeradd', function(e) {
       attachAreaHoverEvents(e.layer);
     });
-    // --- Area info box logic ---
+
     const infoBox = document.getElementById('area-info-box');
 
     function attachAreaHoverEvents(layer) {
       layer.on('mouseover', function(e) {
-        // Get mouse position relative to map container
         const mouseEvent = e.originalEvent;
-        // Position the info box near the mouse
         infoBox.style.left = (mouseEvent.clientX + 16) + 'px';
         infoBox.style.top = (mouseEvent.clientY - 10) + 'px';
 
@@ -398,14 +868,13 @@
         const areaSqMeters = turf.area(feature);
         const areaSqKm = areaSqMeters / 1e6;
         const perimeterKm = turf.length(feature, { units: 'kilometers' });
-        // Geometry helpers for quick measurements and tooltips
         const bbox = turf.bbox(feature);
         const centroid = turf.centroid(feature).geometry.coordinates;
         const vertices = (feature.geometry.coordinates[0] || []).length;
 
         infoBox.innerHTML = `
-          <b>Selected Area Info</b><br>
-          <ul style="margin:8px 0 0 0; padding-left:18px;">
+          <b>Selected Area Info</b>
+          <ul>
             <li><b>Area:</b> ${areaSqKm.toFixed(2)} km²</li>
             <li><b>Perimeter:</b> ${perimeterKm.toFixed(2)} km</li>
             <li><b>BBox:</b> [${bbox.map(n => n.toFixed(2)).join(', ')}]</li>
@@ -416,7 +885,6 @@
         infoBox.style.display = 'block';
       });
       layer.on('mousemove', function(e) {
-        // Move the info box with the mouse
         const mouseEvent = e.originalEvent;
         infoBox.style.left = (mouseEvent.clientX + 16) + 'px';
         infoBox.style.top = (mouseEvent.clientY - 10) + 'px';
@@ -426,15 +894,13 @@
       });
     }
 
-    // --- UI / Exporting -----------------------------------------------------
-    // Reused helper to wait until the current imagery tiles finish loading before capture
+    // Exporting
     async function waitForImageryLoad() {
       if (!currentImageryLayer) return;
       if (!currentImageryLayer._loading) return;
       await new Promise(resolve => currentImageryLayer.once('load', resolve));
     }
 
-    // Helper for downloading content
     function download(filename, content, mime) {
       const blob = new Blob([content], { type: mime || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
@@ -447,24 +913,17 @@
       a.remove();
     }
 
-    // PNG export
     document.getElementById('export-png').addEventListener('click', async () => {
-      // Show a loading indicator (optional)
       document.body.style.cursor = 'wait';
-
-      // Ensure all tiles are loaded before exporting
       await waitForImageryLoad();
-
       const mapEl = document.getElementById('map');
-      mapEl.classList.add('exporting'); // Hide controls
+      mapEl.classList.add('exporting');
       
       try {
         const dataUrl = await domtoimage.toPng(mapEl, {
           width: mapEl.clientWidth,
           height: mapEl.clientHeight,
         });
-  
-        // Data URLs can be used directly as the href for downloads
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = 'map.png';
@@ -472,18 +931,16 @@
         a.click();
         a.remove();
       } finally {
-        mapEl.classList.remove('exporting'); // Show controls
+        mapEl.classList.remove('exporting');
         document.body.style.cursor = 'default';
       }
     });
 
-    // GeoJSON export
     document.getElementById('export-geojson').addEventListener('click', () => {
       const fc = drawnItems.toGeoJSON();
       download('drawings.geojson', JSON.stringify(fc, null, 2), 'application/geo+json');
     });
 
-    // KML export
     document.getElementById('export-kml').addEventListener('click', () => {
       const fc = drawnItems.toGeoJSON();
       if (fc.features.length === 0) {
@@ -494,34 +951,24 @@
       download('drawings.kml', kmlString, 'application/vnd.google-earth.kml+xml');
     });
 
-    // GeoTIFF export (client-side)
     document.getElementById('export-geotiff').addEventListener('click', async () => {
       document.body.style.cursor = 'wait';
-
-      // 1. Capture map as a PNG data URL
-      // Ensure all tiles are loaded before exporting
       await waitForImageryLoad();
-
       const mapEl = document.getElementById('map');
-      mapEl.classList.add('exporting'); // Hide controls
+      mapEl.classList.add('exporting');
 
       try {
         const pngDataUrl = await domtoimage.toPng(mapEl, {
           width: mapEl.clientWidth,
           height: mapEl.clientHeight,
         });
-  
-        // 2. Get image dimensions and geographic bounds
         const size = map.getSize();
         const bounds = map.getBounds();
         const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
-  
-        // 3. Load the PNG into a canvas to get pixel data
         const canvas = document.createElement('canvas');
         canvas.width = size.x;
         canvas.height = size.y;
         const context = canvas.getContext('2d');
-  
         const image = await new Promise((resolve, reject) => {
           const img = new Image();
           img.onload = () => resolve(img);
@@ -530,8 +977,6 @@
         });
         context.drawImage(image, 0, 0, size.x, size.y);
         const imageData = context.getImageData(0, 0, size.x, size.y);
-  
-        // 4. Separate RGBA values into three bands (R, G, B)
         const r = new Uint8Array(size.x * size.y);
         const g = new Uint8Array(size.x * size.y);
         const b = new Uint8Array(size.x * size.y);
@@ -541,27 +986,16 @@
           b[i / 4] = imageData.data[i + 2];
         }
         const rasters = [r, g, b];
-  
-        // 5. Define GeoTIFF metadata
-        const metadata = {
-          width: size.x,
-          height: size.y,
-          srs: 4326, // WGS 84
-          bbox,
-          // ModelTiepoint and ModelPixelScale can also be used for more precise control
-          // but bbox is often sufficient for standard WGS 84 exports.
-        };
-  
-        // 6. Create the GeoTIFF and trigger download
+        const metadata = { width: size.x, height: size.y, srs: 4326, bbox };
         const tiffArrayBuffer = await GeoTIFF.writeArrayBuffer(rasters, metadata);
         download('map.tiff', tiffArrayBuffer, 'image/tiff');
       } finally {
-        mapEl.classList.remove('exporting'); // Show controls
+        mapEl.classList.remove('exporting');
         document.body.style.cursor = 'default';
       }
     });
 
-    // --- NASA GIBS WMS ------------------------------------------------------
+    // NASA GIBS WMS
     const GIBS_WMS = 'https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi?';
     const overlays = L.tileLayer.wms(GIBS_WMS, {
       layers: 'Coastlines,Reference_Features',
@@ -576,7 +1010,7 @@
       const timeParam = dateISO || todayISO;
       return L.tileLayer.wms(GIBS_WMS, {
         layers: layerId,
-        format: 'image/jpeg',   // faster for full-color imagery
+        format: 'image/jpeg',
         transparent: false,
         version: '1.3.0',
         time: timeParam,
@@ -612,7 +1046,6 @@
       currentImageryLayer = nextLayer.addTo(map);
     }
 
-    // UI: Date picker -> update TIME parameter on WMS layer
     const dateInput = document.getElementById('date');
     dateInput.value = defaultDateISO;
     dateInput.min = '2000-01-01';
@@ -653,63 +1086,51 @@
     const layerSelect = document.getElementById('layer');
     layerSelect.value = initialLayerId;
 
-    // Layer descriptions
     const layerDescriptions = {
       'VIIRS_SNPP_CorrectedReflectance_TrueColor': 'VIIRS SNPP True Color: Natural color imagery from the Suomi NPP satellite.',
       'VIIRS_NOAA20_CorrectedReflectance_TrueColor': 'VIIRS NOAA-20 True Color: Natural color imagery from the NOAA-20 satellite.',
       'MODIS_Terra_CorrectedReflectance_TrueColor': 'MODIS Terra True Color: Natural color imagery from the Terra satellite.',
-      'MODIS_Terra_CorrectedReflectance_Bands721': 'MODIS Terra Infrared (Bands 7-2-1): False color composite. Vegetation appears green, burn scars are red, and clouds are white. Useful for distinguishing between snow/ice and clouds, and for detecting fires and burn scars.',
-      'MODIS_Terra_CorrectedReflectance_Bands367': 'MODIS Terra Shortwave IR (Bands 3-6-7): Highlights burn scars (red), vegetation (green), and clouds/snow (white/blue). Useful for fire and vegetation analysis.',
-      'MODIS_Terra_CorrectedReflectance_Bands431': 'MODIS Terra Natural Color (Bands 4-3-1): Similar to true color but with enhanced vegetation contrast. Vegetation appears green, water is blue, and soil is brown.',
-      'MODIS_Terra_CorrectedReflectance_Bands621': 'MODIS Terra Shortwave IR (Bands 6-2-1): Highlights snow, ice, and clouds. Snow/ice appear blue, vegetation is green, and bare ground is brown.',
-      'VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1': 'VIIRS SNPP Infrared (Bands M11-I2-I1): False color composite using infrared and visible bands. Highlights vegetation, water, and burn scars. Useful for fire detection and land surface analysis.',
-      'VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2': 'VIIRS SNPP Shortwave IR (Bands M3-M11-I2): Useful for fire and land surface analysis. Burn scars and hot spots are highlighted.',
-      'VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3': 'VIIRS SNPP Land/Vegetation (Bands I1-I2-I3): Combination of visible and near-infrared bands for land and vegetation monitoring.'
+      'MODIS_Terra_CorrectedReflectance_Bands721': 'MODIS Terra Infrared (7-2-1): False color. Vegetation=green, burn scars=red, clouds=white.',
+      'MODIS_Terra_CorrectedReflectance_Bands367': 'MODIS Terra Shortwave IR (3-6-7): Highlights burn scars, vegetation, and clouds.',
+      'MODIS_Terra_CorrectedReflectance_Bands431': 'MODIS Terra Natural Color (4-3-1): Enhanced vegetation contrast.',
+      'MODIS_Terra_CorrectedReflectance_Bands621': 'MODIS Terra Shortwave IR (6-2-1): Highlights snow, ice, and clouds.',
+      'VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1': 'VIIRS SNPP Infrared: Highlights vegetation, water, and burn scars.',
+      'VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2': 'VIIRS SNPP Shortwave IR: Useful for fire and land analysis.',
+      'VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3': 'VIIRS SNPP Land/Vegetation: Visible and near-infrared bands.'
     };
 
     function updateLayerInfo(layerId) {
-      const info = layerDescriptions[layerId] || 'No description available for this layer.';
+      const info = layerDescriptions[layerId] || 'No description available.';
       document.getElementById('layer-info').textContent = info;
     }
 
-    // Initialize first layer and info
     setImageryLayer(layerSelect.value, dateInput.value);
     updateLayerInfo(layerSelect.value);
 
-    // Keep imagery and info in sync when switching between layers
     layerSelect.addEventListener('change', (e) => {
       const dateISO = dateInput.value || todayISO;
       setImageryLayer(e.target.value, dateISO);
       updateLayerInfo(e.target.value);
     });
 
-    // --- Storm System Visualization (NASA EONET) ------------------------------
-    // Source: NASA EONET API for natural events (storms, cyclones, etc.)
-    // Docs: https://eonet.gsfc.nasa.gov/docs/v3
-    // Example endpoint: https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=open
-
+    // Storm visualization
     const stormLayerGroup = L.layerGroup().addTo(map);
     const stormStatus = document.getElementById('storm-status');
 
     async function fetchAndDisplayStorms() {
       stormLayerGroup.clearLayers();
       try {
-        // Fetch open severe storms from EONET
         const resp = await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=open');
         if (!resp.ok) throw new Error('Failed to fetch storm data');
         const data = await resp.json();
-        // Each event is a storm system
         const events = data.events || [];
-        (events || []).forEach(event => {
-          // Find the latest geometry with coordinates
+        events.forEach(event => {
           const latestGeom = (event.geometry || []).slice(-1)[0];
           if (latestGeom && latestGeom.coordinates && Array.isArray(latestGeom.coordinates)) {
             let lat, lon;
-            // EONET coordinates are [lon, lat] for points, or arrays for polygons
             if (typeof latestGeom.coordinates[0] === 'number') {
               [lon, lat] = latestGeom.coordinates;
             } else if (Array.isArray(latestGeom.coordinates[0])) {
-              // If it's a polygon, use centroid of first ring
               const ring = latestGeom.coordinates[0];
               const n = ring.length;
               let sumLat = 0, sumLon = 0;
@@ -717,39 +1138,30 @@
               lat = sumLat / n;
               lon = sumLon / n;
             }
-            // Draw a circle (radius in km, e.g., 200km for visualization)
             const circle = L.circle([lat, lon], {
-              color: 'red',
-              fillColor: '#f03',
-              fillOpacity: 0.3,
-              radius: 200000 // 200km
+              color: '#ef4444',
+              fillColor: '#ef4444',
+              fillOpacity: 0.2,
+              radius: 200000,
+              weight: 2
             });
-            // Add a label with the storm name
-            const name = event.title || 'Storm';
-            circle.bindPopup(`<b>${name}</b>`);
+            circle.bindPopup(`<b>${event.title || 'Storm'}</b>`);
             circle.addTo(stormLayerGroup);
           }
         });
 
         const updated = new Date().toLocaleTimeString();
-        stormStatus.textContent = `Storms: ${events.length} active • Updated ${updated}`;
+        stormStatus.innerHTML = `<span class="storm-dot"></span><span>${events.length} active storms • ${updated}</span>`;
       } catch (err) {
         console.error('Storm fetch error:', err);
-        stormStatus.textContent = 'Storms: unable to fetch storm data right now.';
+        stormStatus.innerHTML = '<span>Unable to fetch storm data</span>';
       }
     }
 
-    // Fetch storms on load and every 30 minutes
     fetchAndDisplayStorms();
     setInterval(fetchAndDisplayStorms, 30 * 60 * 1000);
 
-    // Optional: Add a button to refresh storms manually
-    const stormBtn = document.createElement('button');
-    stormBtn.textContent = '↻ Storms';
-    stormBtn.title = 'Fetch and display current storm systems';
-    stormBtn.className = 'chip ghost';
-    stormBtn.onclick = fetchAndDisplayStorms;
-    controlPanel.appendChild(stormBtn);
+    document.getElementById('refresh-storms').addEventListener('click', fetchAndDisplayStorms);
 
     // Drawing utilities
     document.getElementById('clear-drawings').addEventListener('click', () => {
@@ -759,7 +1171,7 @@
 
     document.getElementById('zoom-drawings').addEventListener('click', () => {
       if (drawnItems.getLayers().length === 0) {
-        alert('No drawings yet. Use the draw controls in the bottom-left corner to add an AOI.');
+        alert('No drawings yet. Use the draw controls to add an area of interest.');
         return;
       }
       map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
