@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Open EO Viewer (Leaflet + GIBS)</title>
+  <title>openEO Viewer (Leaflet + GIBS)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Leaflet core -->
@@ -170,6 +170,14 @@
       border-color: var(--input-border);
     }
 
+    .toolbar.collapsed {
+      padding-bottom: 10px;
+    }
+
+    .toolbar.collapsed #panel-body {
+      display: none;
+    }
+
     .micro {
       font-size: 12px;
       opacity: 0.85;
@@ -223,52 +231,55 @@
     <div class="header">
       <span style="display:flex; align-items:center; gap:6px;">
         <span style="width:8px; height:8px; border-radius:50%; background:linear-gradient(120deg, #4ac2ff, #9c7bff);"></span>
-        EO Quick Deck
+        openEO Viewer
       </span>
       <div class="chip-row">
+        <button id="collapse-toggle" class="ghost chip" aria-expanded="true" title="Collapse toolbar">▾</button>
         <button id="theme-toggle" class="ghost chip" title="Toggle light/dark mode">🌗</button>
       </div>
     </div>
 
-    <div class="field">
-      <label for="layer">Layer</label>
-      <select id="layer">
-        <!-- GIBS layer identifiers (True Color & Infrared) -->
-        <option value="VIIRS_SNPP_CorrectedReflectance_TrueColor">VIIRS SNPP True Color</option>
-        <option value="VIIRS_NOAA20_CorrectedReflectance_TrueColor" selected>VIIRS NOAA-20 True Color</option>
-        <option value="MODIS_Terra_CorrectedReflectance_TrueColor">MODIS Terra True Color</option>
-        <option value="MODIS_Terra_CorrectedReflectance_Bands721">MODIS Terra Infrared (Bands 7-2-1)</option>
-        <option value="MODIS_Terra_CorrectedReflectance_Bands367">MODIS Terra Shortwave IR (Bands 3-6-7)</option>
-        <option value="MODIS_Terra_CorrectedReflectance_Bands431">MODIS Terra Natural Color (Bands 4-3-1)</option>
-        <option value="MODIS_Terra_CorrectedReflectance_Bands621">MODIS Terra Shortwave IR (Bands 6-2-1)</option>
-        <option value="VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1">VIIRS SNPP Infrared (Bands M11-I2-I1)</option>
-        <option value="VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2">VIIRS SNPP Shortwave IR (Bands M3-M11-I2)</option>
-        <option value="VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3">VIIRS SNPP Land/Vegetation (Bands I1-I2-I3)</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label for="date">Date</label>
-      <div class="chip-row" style="flex:1;">
-        <input type="date" id="date" style="flex:1; min-width:140px;" />
-        <button id="prev-day" class="chip" title="Go to the previous day">◀︎</button>
-        <button id="next-day" class="chip" title="Go to the next day">▶︎</button>
-        <button id="latest-day" class="chip" title="Jump to the latest available imagery">Latest</button>
+    <div id="panel-body">
+      <div class="field">
+        <label for="layer">Layer</label>
+        <select id="layer">
+          <!-- GIBS layer identifiers (True Color & Infrared) -->
+          <option value="VIIRS_SNPP_CorrectedReflectance_TrueColor">VIIRS SNPP True Color</option>
+          <option value="VIIRS_NOAA20_CorrectedReflectance_TrueColor" selected>VIIRS NOAA-20 True Color</option>
+          <option value="MODIS_Terra_CorrectedReflectance_TrueColor">MODIS Terra True Color</option>
+          <option value="MODIS_Terra_CorrectedReflectance_Bands721">MODIS Terra Infrared (Bands 7-2-1)</option>
+          <option value="MODIS_Terra_CorrectedReflectance_Bands367">MODIS Terra Shortwave IR (Bands 3-6-7)</option>
+          <option value="MODIS_Terra_CorrectedReflectance_Bands431">MODIS Terra Natural Color (Bands 4-3-1)</option>
+          <option value="MODIS_Terra_CorrectedReflectance_Bands621">MODIS Terra Shortwave IR (Bands 6-2-1)</option>
+          <option value="VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1">VIIRS SNPP Infrared (Bands M11-I2-I1)</option>
+          <option value="VIIRS_SNPP_CorrectedReflectance_BandsM3-M11-I2">VIIRS SNPP Shortwave IR (Bands M3-M11-I2)</option>
+          <option value="VIIRS_SNPP_CorrectedReflectance_BandsI1-I2-I3">VIIRS SNPP Land/Vegetation (Bands I1-I2-I3)</option>
+        </select>
       </div>
-    </div>
 
-    <div class="pill-row">
-      <button id="export-png" class="pill" title="Save as image">PNG</button>
-      <button id="export-geotiff" class="pill" title="Save as GeoTIFF">GeoTIFF</button>
-      <button id="export-kml" class="pill" title="Save KML from drawings">KML</button>
-      <button id="export-geojson" class="pill" title="Save GeoJSON from drawings">GeoJSON</button>
-      <button id="zoom-drawings" class="pill" title="Zoom to your drawings">Zoom AOI</button>
-      <button id="clear-drawings" class="pill" title="Remove all drawn features">Clear AOI</button>
-    </div>
+      <div class="field">
+        <label for="date">Date</label>
+        <div class="chip-row" style="flex:1;">
+          <input type="date" id="date" style="flex:1; min-width:140px;" />
+          <button id="prev-day" class="chip" title="Go to the previous day">◀︎</button>
+          <button id="next-day" class="chip" title="Go to the next day">▶︎</button>
+          <button id="latest-day" class="chip" title="Jump to the latest available imagery">Latest</button>
+        </div>
+      </div>
 
-    <div class="meta">
-      <div id="layer-info">Select a layer to see its description.</div>
-      <div id="storm-status" class="micro">Storms: loading…</div>
+      <div class="pill-row">
+        <button id="export-png" class="pill" title="Save as image">PNG</button>
+        <button id="export-geotiff" class="pill" title="Save as GeoTIFF">GeoTIFF</button>
+        <button id="export-kml" class="pill" title="Save KML from drawings">KML</button>
+        <button id="export-geojson" class="pill" title="Save GeoJSON from drawings">GeoJSON</button>
+        <button id="zoom-drawings" class="pill" title="Zoom to your drawings">Zoom AOI</button>
+        <button id="clear-drawings" class="pill" title="Remove all drawn features">Clear AOI</button>
+      </div>
+
+      <div class="meta">
+        <div id="layer-info">Select a layer to see its description.</div>
+        <div id="storm-status" class="micro">Storms: loading…</div>
+      </div>
     </div>
   </div>
 
@@ -297,6 +308,25 @@
     });
 
     const controlPanel = document.getElementById('control-panel');
+    const panelBody = document.getElementById('panel-body');
+    const collapseToggle = document.getElementById('collapse-toggle');
+
+    function setCollapsed(isCollapsed) {
+      controlPanel.classList.toggle('collapsed', isCollapsed);
+      panelBody.hidden = isCollapsed;
+      collapseToggle.setAttribute('aria-expanded', (!isCollapsed).toString());
+      collapseToggle.textContent = isCollapsed ? '▸' : '▾';
+      collapseToggle.title = isCollapsed ? 'Expand toolbar' : 'Collapse toolbar';
+      localStorage.setItem('panelCollapsed', isCollapsed ? '1' : '0');
+    }
+
+    const savedCollapse = localStorage.getItem('panelCollapsed');
+    const prefersCollapsed = window.matchMedia('(max-width: 640px)').matches;
+    setCollapsed(savedCollapse ? savedCollapse === '1' : prefersCollapsed);
+
+    collapseToggle.addEventListener('click', () => {
+      setCollapsed(!controlPanel.classList.contains('collapsed'));
+    });
 
     // --- Map setup -----------------------------------------------------------
     const todayISO = new Date().toISOString().slice(0,10);
