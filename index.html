@@ -156,7 +156,21 @@
 
     // --- Map setup -----------------------------------------------------------
     const todayISO = new Date().toISOString().slice(0,10);
-    const defaultDateISO = todayISO;
+    function formatDate(dateObj) {
+      return dateObj.toISOString().slice(0, 10);
+    }
+
+    function getInitialImageryDate() {
+      const now = new Date();
+      // GIBS daily imagery can lag; favor yesterday unless we're well past the refresh window
+      const initial = new Date(now);
+      if (now.getUTCHours() < 18) {
+        initial.setUTCDate(initial.getUTCDate() - 1);
+      }
+      return formatDate(initial);
+    }
+
+    const defaultDateISO = getInitialImageryDate();
     const initialLayerId = 'VIIRS_NOAA20_CorrectedReflectance_TrueColor';
 
     const map = L.map('map', {
@@ -400,19 +414,39 @@
       });
     }
 
-    function setImageryLayer(layerId, dateISO) {
+    function shiftDate(dateISO, deltaDays) {
+      const d = new Date(dateISO);
+      d.setUTCDate(d.getUTCDate() + deltaDays);
+      return formatDate(d);
+    }
+
+    function setImageryLayer(layerId, dateISO, opts = {}) {
+      const { allowFallback = true } = opts;
       if (currentImageryLayer) {
         map.removeLayer(currentImageryLayer);
       }
-      currentImageryLayer = buildImageryLayer(layerId, dateISO);
-      currentImageryLayer.addTo(map);
+      const imageryDate = dateISO || todayISO;
+      const nextLayer = buildImageryLayer(layerId, imageryDate);
+
+      if (allowFallback) {
+        nextLayer.once('tileerror', () => {
+          const fallbackDate = shiftDate(imageryDate, -1);
+          if (fallbackDate >= dateInput.min) {
+            console.warn(`Imagery unavailable for ${imageryDate}; falling back to ${fallbackDate}`);
+            setDateSafely(fallbackDate);
+            setImageryLayer(layerId, fallbackDate, { allowFallback: false });
+          }
+        });
+      }
+
+      currentImageryLayer = nextLayer.addTo(map);
     }
 
     // UI: Date picker -> update TIME parameter on WMS layer
     const dateInput = document.getElementById('date');
     dateInput.value = defaultDateISO;
     dateInput.min = '2000-01-01';
-    const latestSelectableDate = todayISO < defaultDateISO ? defaultDateISO : todayISO;
+    const latestSelectableDate = todayISO;
     dateInput.max = latestSelectableDate;
 
     function setDateSafely(dateISO) {
