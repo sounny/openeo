@@ -987,7 +987,8 @@
         </ul>
 
         <h3>About This Project</h3>
-        <p>This codebase is part of a pedagogical exercise for <strong>Iowa State University's MSS26 class</strong>,
+        <p>This codebase is part of a pedagogical exercise for <strong>International Space University's MSS26
+            class</strong>,
           designed to teach students software engineering fundamentals using AI assistance and GitHub collaboration.</p>
         <span class="modal-badge">ISU MSS26 Course Project</span>
       </div>
@@ -1128,9 +1129,9 @@
       draw: {
         polygon: { allowIntersection: false, showArea: true },
         rectangle: true,
-        polyline: false,
+        polyline: true,
         circle: false,
-        marker: false,
+        marker: true,
         circlemarker: false
       }
     });
@@ -1154,21 +1155,44 @@
         infoBox.style.top = (mouseEvent.clientY - 10) + 'px';
 
         const feature = layer.toGeoJSON();
-        const areaSqMeters = turf.area(feature);
-        const areaSqKm = areaSqMeters / 1e6;
-        const perimeterKm = turf.length(feature, { units: 'kilometers' });
+        const type = feature.geometry.type;
         const bbox = turf.bbox(feature);
         const centroid = turf.centroid(feature).geometry.coordinates;
-        const vertices = (feature.geometry.coordinates[0] || []).length;
 
-        infoBox.innerHTML = `
-          <b>Selected Area Info</b>
-          <ul>
+        let content = '';
+        if (type === 'Point') {
+          const [lon, lat] = feature.geometry.coordinates;
+          content = `
+            <li><b>Type:</b> Point</li>
+            <li><b>Coords:</b> ${lat.toFixed(4)}, ${lon.toFixed(4)}</li>
+          `;
+        } else if (type === 'LineString') {
+          const lenKm = turf.length(feature, { units: 'kilometers' });
+          const verts = feature.geometry.coordinates.length;
+          content = `
+            <li><b>Type:</b> Line</li>
+            <li><b>Length:</b> ${lenKm.toFixed(2)} km</li>
+            <li><b>Vertices:</b> ${verts}</li>
+          `;
+        } else {
+          // Polygon
+          const areaSqMeters = turf.area(feature);
+          const areaSqKm = areaSqMeters / 1e6;
+          const perimeterKm = turf.length(feature, { units: 'kilometers' });
+          const verts = (feature.geometry.coordinates[0] || []).length;
+          content = `
             <li><b>Area:</b> ${areaSqKm.toFixed(2)} km²</li>
             <li><b>Perimeter:</b> ${perimeterKm.toFixed(2)} km</li>
-            <li><b>BBox:</b> [${bbox.map(n => n.toFixed(2)).join(', ')}]</li>
+            <li><b>Vertices:</b> ${verts}</li>
+          `;
+        }
+
+        infoBox.innerHTML = `
+          <b>Selected Feature Info</b>
+          <ul>
+            ${content}
             <li><b>Centroid:</b> ${centroid[1].toFixed(2)}, ${centroid[0].toFixed(2)}</li>
-            <li><b>Vertices:</b> ${vertices}</li>
+            <li><b>BBox:</b> [${bbox.map(n => n.toFixed(2)).join(', ')}]</li>
           </ul>
         `;
         infoBox.style.display = 'block';
